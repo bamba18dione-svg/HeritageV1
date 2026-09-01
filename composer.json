@@ -1,0 +1,15 @@
+{
+    "name": "ahmadoul-xadeem/exo_heritage_v1",
+    "autoload": {
+        "psr-4": {
+            "AhmadoulXadeem\\ExoHeritageV1\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "bamba",
+            "email": "bamba118dione@gmail.com"
+        }
+    ],
+    "require": {}
+}
