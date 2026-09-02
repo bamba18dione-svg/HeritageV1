@@ -1,12 +1,6 @@
--- ============================================================
--- Schéma de la base de données : Gestion des copies d'examen
--- Fichier : database/schema.sql
--- ============================================================
 
--- Suppression de la table si elle existe déjà (pour réinitialisation)
 DROP TABLE IF EXISTS copie_examen;
 
--- Création de la table pour stocker les copies d'examen
 CREATE TABLE IF NOT EXISTS copie_examen (
     id SERIAL PRIMARY KEY,
     date_depot TIMESTAMP NOT NULL,
@@ -17,13 +11,8 @@ CREATE TABLE IF NOT EXISTS copie_examen (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ============================================================
--- Données de test
--- ============================================================
 
--- Insertion d'une ligne de test
 INSERT INTO copie_examen (date_depot, date_limite, note_brute, note_finale, penalite_appliquee)
 VALUES ('2026-09-01 10:00:00', '2026-09-05 23:59:59', 15.50, 15.50, FALSE);
 
--- Consultation de la ligne de test
--- SELECT * FROM copie_examen;
+select * from copie_examen;

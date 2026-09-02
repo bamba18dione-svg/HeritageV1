@@ -1,26 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Entity;
 
 class CopieExamen extends AbstractDocument
 {
     private float $noteBrute;
     private float $noteFinale;
-    private bool $penaliteAppliquee;
-    private \DateTime $dateLimite;
+    private float $penaliteAppliquee = 0.0;
+    private \DateTimeImmutable $dateLimite;
 
     public function __construct(
-        \DateTime $dateDepot,
+        \DateTimeInterface|string $dateLimite,
         float $noteBrute,
-        \DateTime $dateLimite,
+        float $noteFinale,
+        float $penaliteAppliquee = 0.0,
+        \DateTimeInterface|string $dateDepot = new \DateTimeImmutable(),
         ?int $id = null
     ) {
         parent::__construct($dateDepot, $id);
-
+        $this->setDateLimite($dateLimite);
         $this->setNoteBrute($noteBrute);
-        $this->dateLimite = $dateLimite;
-        $this->penaliteAppliquee = false;
-        $this->noteFinale = $noteBrute;
+        $this->setNoteFinale($noteFinale);
+        $this->setPenaliteAppliquee($penaliteAppliquee);
     }
 
     public function getNoteBrute(): float
@@ -28,15 +31,11 @@ class CopieExamen extends AbstractDocument
         return $this->noteBrute;
     }
 
-    public function setNoteBrute(float $noteBrute): void
+    public function setNoteBrute(float $noteBrute): static
     {
-        if ($noteBrute < 0 || $noteBrute > 20) {
-            throw new \InvalidArgumentException(
-                'La note doit être comprise entre 0 et 20.'
-            );
-        }
-
+        $this->validerNote($noteBrute, 'note brute');
         $this->noteBrute = $noteBrute;
+        return $this;
     }
 
     public function getNoteFinale(): float
@@ -44,34 +43,70 @@ class CopieExamen extends AbstractDocument
         return $this->noteFinale;
     }
 
-    public function setNoteFinale(float $noteFinale): void
+    public function setNoteFinale(float $noteFinale): static
     {
-        if ($noteFinale < 0 || $noteFinale > 20) {
-            throw new \InvalidArgumentException(
-                'La note finale doit être comprise entre 0 et 20.'
-            );
-        }
-
+        $this->validerNote($noteFinale, 'note finale');
         $this->noteFinale = $noteFinale;
+        return $this;
     }
 
-    public function getPenaliteAppliquee(): bool
+    public function getPenaliteAppliquee(): float
     {
         return $this->penaliteAppliquee;
     }
 
-    public function setPenaliteAppliquee(bool $penaliteAppliquee): void
+    public function setPenaliteAppliquee(float $penaliteAppliquee): static
     {
+        if ($penaliteAppliquee < 0.0) {
+            throw new \InvalidArgumentException(
+                sprintf("La penalite appliquee ne peut pas etre negative (valeur recue : %.2f).", $penaliteAppliquee)
+            );
+        }
         $this->penaliteAppliquee = $penaliteAppliquee;
+        return $this;
     }
 
-    public function getDateLimite(): \DateTime
+    public function getDateLimite(): \DateTimeImmutable
     {
         return $this->dateLimite;
     }
 
-    public function setDateLimite(\DateTime $dateLimite): void
+    public function setDateLimite(\DateTimeInterface|string $dateLimite): static
     {
+        if (is_string($dateLimite)) {
+            try {
+                $dateLimite = new \DateTimeImmutable($dateLimite);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException("Format de date limite invalide : " . $e->getMessage());
+            }
+        } elseif ($dateLimite instanceof \DateTime) {
+            $dateLimite = \DateTimeImmutable::createFromMutable($dateLimite);
+        }
+
         $this->dateLimite = $dateLimite;
+        return $this;
+    }
+
+    public function isEnRetard(): bool
+    {
+        return $this->dateDepot > $this->dateLimite;
+    }
+
+    public function calculerRetardJours(): int
+    {
+        if (!$this->isEnRetard()) {
+            return 0;
+        }
+        $diff = $this->dateLimite->diff($this->dateDepot);
+        return (int) $diff->days;
+    }
+
+    private function validerNote(float $note, string $nomChamp): void
+    {
+        if ($note < 0.0 || $note > 20.0) {
+            throw new \InvalidArgumentException(
+                sprintf("La %s doit etre comprise entre 0 et 20 (valeur recue : %.2f).", $nomChamp, $note)
+            );
+        }
     }
 }
