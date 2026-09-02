@@ -1,8 +1,10 @@
 {
     "name": "ahmadoul-xadeem/exo_heritage_v1",
+    "description": "Système de notation et de gestion des copies d'examen",
+    "type": "project",
     "autoload": {
         "psr-4": {
-            "AhmadoulXadeem\\ExoHeritageV1\\": "src/"
+            "App\\": "src/"
         }
     },
     "authors": [
@@ -11,5 +13,7 @@
             "email": "bamba118dione@gmail.com"
         }
     ],
-    "require": {}
+    "require": {
+        "php": ">=8.1"
+    }
 }
