@@ -100,6 +100,12 @@ SELECT * FROM copie_examen;
    ```
 2. Renseigner vos accès dans le fichier `.env` :
    ```env
+    # Neon (recommandé)
+    DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+    ```
+
+    Pour une base PostgreSQL locale, utiliser plutôt :
+    ```env
    DB_DRIVER=pgsql
    DB_HOST=127.0.0.1
    DB_PORT=5432
@@ -107,7 +113,8 @@ SELECT * FROM copie_examen;
    DB_USER=postgres
    DB_PASSWORD=votre_mot_de_passe
    ```
-3. La classe `App\Database\Database` charge automatiquement ces paramètres et fournit l'instance PDO via `Database::getConnection()`.
+3. Remplacer `USER`, `PASSWORD`, `HOST` et `DBNAME` par les valeurs de Neon. La variable `DATABASE_URL` est prioritaire et active SSL avec `sslmode=require`.
+4. La classe `App\Database\Database` charge automatiquement ces paramètres et fournit l'instance PDO via `Database::getConnection()`.
 
 ---
 
@@ -133,3 +140,45 @@ Ce fichier `.env` doit être strictement listé dans `.gitignore` afin de ne jam
 - **Sécurité renforcée (Requêtes préparées)** : PDO permet l'utilisation native de requêtes préparées (`prepare()` et `execute()`), éliminant ainsi les risques d'**injection SQL** grâce à la séparation stricte de la structure SQL et des données utilisateurs.
 - **Gestion moderne des erreurs** : Avec le mode `PDO::ERRMODE_EXCEPTION`, toute erreur de requête déclenche une exception `PDOException`, facile à intercepter et à traiter proprement.
 - **Formatage des résultats flexible** : PDO facilite la récupération des données sous différents formats (tableaux associatifs avec `FETCH_ASSOC`, objets, ou directement hydratés dans une classe spécifique avec `FETCH_CLASS`).
+
+---
+
+## Partie 4 — Transporter les données du formulaire
+
+### 1. Pourquoi créer un objet supplémentaire alors que `$_POST` contient déjà les données ?
+- **Typage fort et intégrité** : Le tableau superglobal `$_POST` ne contient que des chaînes de caractères (`string`) non structurées. Le DTO (`SoumettreCopieDTO`) convertit et garantit des types stricts (`float`, `DateTimeImmutable`), évitant les erreurs de type et les incohérences dans les couches métier.
+- **Sécurité et découplage (Sanitization)** : Injecter directement `$_POST` dans les services ou entités crée une dépendance directe au protocole HTTP et expose l'application à des injections ou des champs imprévus. Le DTO agit comme un filtre strict étanche.
+- **Contrat clair et maintenabilité** : Le DTO formalise exactement les données attendues par l'action de soumission, facilitant l'auto-complétion, la lisibilité et l'analyse statique du code.
+
+### 2. Quelle différence observez-vous entre cet objet et `CopieExamen` ?
+- **Nature et responsabilité** :
+  - `SoumettreCopieDTO` est un simple **objet de transport de données (DTO)** sans comportement métier ni persistance. Il n'applique aucune pénalité et ne calcule pas la note finale.
+  - `CopieExamen` est une **Entité du domaine métier (Entity)**. Elle encapsule la logique métier (calcul du retard, pénalités, note finale), possède un identifiant de base de données (`$id`), hérite d'`AbstractDocument` et a vocation à être persistée par le Repository.
+- **Champs contenus** : Le DTO ne contient que les 3 entrées brutes du formulaire (`noteBrute`, `dateDepot`, `dateLimite`), alors que l'entité gère également `$id`, `noteFinale`, `penaliteAppliquee`, etc.
+
+### 3. Cet objet doit-il posséder un identifiant de base de données ?
+**Non.** Le DTO ne représente que des données en transit envoyées par l'utilisateur lors de la soumission d'un formulaire. À ce stade, la copie n'est pas encore enregistrée en base de données et ne possède donc aucun identifiant (`id`). De plus, le DTO n'est jamais persisté directement en table SQL.
+
+### 4. Où la conversion des chaînes de dates doit-elle avoir lieu ?
+La conversion des chaînes de caractères (ex: `"2026-09-01T10:00"`) en objets `DateTimeImmutable` doit avoir lieu **à la frontière d'entrée de l'application**, c'est-à-dire **directement lors de la création / instanciation du DTO** (dans son constructeur ou via une méthode de fabrique `SoumettreCopieDTO::fromArray($_POST)`).
+
+Ainsi, dès que les données franchissent la couche HTTP pour être transmises aux services métier, elles sont déjà nettoyées, converties et garanties valides.
+
+---
+
+## Partie 5 — Stratégie de calcul
+
+### Patron de conception Strategy
+Le patron **Strategy** permet d'isoler des algorithmes ou des règles métiers interchangeables (ici le calcul de la note finale et des pénalités) derrière une interface commune (`CalculNoteInterface`).
+
+### 1. Interface [`CalculNoteInterface`](src/Service/CalculNoteInterface.php)
+Définit le contrat `calculer(CopieExamen $copie): float` implémenté par toutes les stratégies de calcul.
+
+### 2. Service [`CalculNoteAvecRetardService`](src/Service/CalculNoteAvecRetardService.php)
+Implémente la règle de pénalité :
+- Si la copie est à temps : aucune pénalité (`0.0`), note finale = note brute.
+- Si la copie est en retard : pénalité = `jours_de_retard * penalite_par_jour` (ex : 2.0 pts/jour).
+- Note finale = `max(0, note_brute - penalite)`.
+
+### 3. Service [`CalculNoteSimpleService`](src/Service/CalculNoteSimpleService.php)
+Stratégie alternative sans pénalité pour démontrer l'interchangeabilité des stratégies.

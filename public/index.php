@@ -2,44 +2,47 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/vendor/autoload.php';
+// Démarrage et initialisation de l'application via le bootstrap backend
+require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-use Dotenv\Dotenv;
+use App\DTO\SoumettreCopieDTO;
 use App\Entity\CopieExamen;
-use App\Database\Database;
-use App\Repository\CopieExamenRepository;
+use App\Service\CalculNoteAvecRetardService;
+use App\Service\CalculNoteSimpleService;
 
-// Chargement des variables d'environnement
-$dotenv = Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->safeLoad();
+echo "<h1>--- Système de Gestion des Copies d'Examen ---</h1>";
 
-echo "<h1>--- Test du Système de Gestion des Copies ---</h1>";
+// 1. Simulation d'une soumission avec retard
+$donneesFormulaire = [
+    'note_brute'  => '15.0',
+    'date_limite' => '2026-09-01 12:00:00',
+    'date_depot'  => '2026-09-04 14:00:00' // 3 jours de retard
+];
 
-// 1. Instanciation de l'Entité CopieExamen
-echo "<h2>1. Entité CopieExamen</h2>";
-$dateLimite = new \DateTimeImmutable('2026-09-05 23:59:59');
-$dateDepot  = new \DateTimeImmutable('2026-09-01 10:00:00');
+echo "<h2>1. Données du formulaire</h2>";
+$dto = SoumettreCopieDTO::fromArray($donneesFormulaire);
+echo "<p>Note brute : " . $dto->getNoteBrute() . "/20</p>";
+echo "<p>Date limite : " . $dto->getDateLimite()->format('d/m/Y H:i') . "</p>";
+echo "<p>Date de dépôt : " . $dto->getDateDepot()->format('d/m/Y H:i') . "</p>";
 
+// 2. Création de l'Entité
 $copie = new CopieExamen(
-    dateLimite: $dateLimite,
-    noteBrute: 15.50,
-    noteFinale: 15.50,
+    dateLimite: $dto->getDateLimite(),
+    noteBrute: $dto->getNoteBrute(),
+    noteFinale: $dto->getNoteBrute(),
     penaliteAppliquee: 0.0,
-    dateDepot: $dateDepot
+    dateDepot: $dto->getDateDepot()
 );
 
-echo "<p>Note brute : " . $copie->getNoteBrute() . "/20</p>";
-echo "<p>Date de dépôt : " . $copie->getDateDepot()->format('d/m/Y H:i') . "</p>";
-echo "<p>En retard ? " . ($copie->isEnRetard() ? 'Oui' : 'Non') . "</p>";
+echo "<h2>2. Application de la Stratégie de Calcul (Strategy Pattern)</h2>";
+$strategieRetard = new CalculNoteAvecRetardService(penaliteParJour: 2.0);
+$noteFinale = $strategieRetard->calculer($copie);
 
-// 2. Test du Repository
-echo "<h2>2. Récupération des données via CopieExamenRepository</h2>";
-try {
-    $repo = new CopieExamenRepository();
-    $copies = $repo->findAll();
-    echo "<pre>";
-    var_dump($copies);
-    echo "</pre>";
-} catch (\Exception $e) {
-    echo "<p style='color:red;'>Erreur : " . $e->getMessage() . "</p>";
-}
+echo "<p>Est en retard ? " . ($copie->isEnRetard() ? '<strong>Oui (' . $copie->calculerRetardJours() . ' jours)</strong>' : 'Non') . "</p>";
+echo "<p>Pénalité appliquée : <strong>-" . $copie->getPenaliteAppliquee() . " points</strong> (2 pts / jour de retard)</p>";
+echo "<p>Note finale après calcul : <strong>" . $copie->getNoteFinale() . "/20</strong></p>";
+
+echo "<h2>3. État final de l'Entité CopieExamen</h2>";
+echo "<pre>";
+var_dump($copie);
+echo "</pre>";

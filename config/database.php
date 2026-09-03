@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'url' => $_ENV['DATABASE_URL'] ?? '',
     'driver' => $_ENV['DB_DRIVER'] ?? 'pgsql',
     'host' => $_ENV['DB_HOST'] ?? '127.0.0.1',
     'port' => (int) ($_ENV['DB_PORT'] ?? 5432),

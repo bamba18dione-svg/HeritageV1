@@ -49,6 +49,7 @@ final class Database
             $dbname   = $config['dbname'] ?? 'heritage_v1';
             $user     = $config['user'] ?? 'postgres';
             $password = $config['password'] ?? '';
+            $databaseUrl = $config['url'] ?? '';
             $options  = $config['options'] ?? [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -56,7 +57,23 @@ final class Database
             ];
 
             try {
-                if ($driver === 'sqlite') {
+                if ($databaseUrl !== '') {
+                    $databaseUrlParts = parse_url($databaseUrl);
+                    if ($databaseUrlParts === false || empty($databaseUrlParts['host'])) {
+                        throw new PDOException('DATABASE_URL est invalide.');
+                    }
+
+                    $dsn = sprintf(
+                        'pgsql:host=%s;port=%d;dbname=%s;sslmode=%s',
+                        $databaseUrlParts['host'],
+                        (int) ($databaseUrlParts['port'] ?? 5432),
+                        ltrim($databaseUrlParts['path'] ?? '', '/'),
+                        $_ENV['DB_SSLMODE'] ?? 'require'
+                    );
+                    $user = $databaseUrlParts['user'] ?? $user;
+                    $password = $databaseUrlParts['pass'] ?? $password;
+                    self::$instance = new PDO($dsn, $user, $password, $options);
+                } elseif ($driver === 'sqlite') {
                     $dsn = "sqlite:" . $dbname;
                     self::$instance = new PDO($dsn, null, null, $options);
                 } else {
